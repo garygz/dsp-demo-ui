@@ -5,6 +5,8 @@ import { Alert, Box, Card, CardContent, CircularProgress, Typography, ToggleButt
 import { useAuth } from '../context/AuthContext'
 import { ENDPOINTS } from '../api/endpoints'
 
+const LIVE_MAX_POINTS = 60
+
 const generateSeries = (days, baseOffset = 0, phaseShift = 0) => {
   const now = Date.now()
   const msPerDay = 86400000
@@ -50,6 +52,20 @@ const UtcLabel = styled(Typography)({
   fontWeight: 500,
 })
 
+const LiveDot = styled('span')(({ theme }) => ({
+  display: 'inline-block',
+  width: 7,
+  height: 7,
+  borderRadius: '50%',
+  backgroundColor: theme.palette.error.main,
+  marginRight: 4,
+  animation: 'pulse 1.4s ease-in-out infinite',
+  '@keyframes pulse': {
+    '0%, 100%': { opacity: 1 },
+    '50%': { opacity: 0.3 },
+  },
+}))
+
 const chartWrapperStyle = { position: 'relative', width: '100%' }
 
 const LoadingOverlay = styled(Box)({
@@ -68,12 +84,13 @@ const ErrorAlert = styled(Alert)(({ theme }) => ({
 export default function TimeseriesChart({ advertiserId, campaignId }) {
   const { user } = useAuth()
   const [range, setRange] = useState(7)
+  const [live, setLive] = useState(false)
   const [impressions, setImpressions] = useState([])
   const [clicks, setClicks] = useState([])
   const [loading, setLoading] = useState(false)
-  const containerRef = useRef(null)
   const [error, setError] = useState('')
   const [chartWidth, setChartWidth] = useState(600)
+  const containerRef = useRef(null)
 
   useEffect(() => {
     if (!containerRef.current) return
@@ -84,11 +101,11 @@ export default function TimeseriesChart({ advertiserId, campaignId }) {
     return () => observer.disconnect()
   }, [])
 
+  // Range fetch — runs on campaign/range changes, and once when live is first enabled
   useEffect(() => {
     if (!advertiserId || !campaignId) return
-    const controller = new AbortController()
 
-    const load = async () => {
+    const fetchData = async (signal) => {
       setLoading(true)
       setError('')
       try {
@@ -96,7 +113,7 @@ export default function TimeseriesChart({ advertiserId, campaignId }) {
         const to = toDateParam(0)
         const r = await fetch(
           ENDPOINTS.CAMPAIGN_STATS(advertiserId, campaignId, from, to),
-          { headers: { Authorization: `Bearer ${user.token}` }, signal: controller.signal }
+          { headers: { Authorization: `Bearer ${user.token}` }, signal }
         )
         if (r.status === 403) throw new Error('Session expired. Please sign out and log in again.')
         if (!r.ok) throw new Error(`Request failed: ${r.status}`)
@@ -104,15 +121,48 @@ export default function TimeseriesChart({ advertiserId, campaignId }) {
         setImpressions(impressionsPerDay.map((d) => ({ date: new Date(d.date), value: d.count })))
         setClicks(clicksPerDay.map((d) => ({ date: new Date(d.date), value: d.count })))
       } catch (err) {
-        setError(err.message)
+        if (err.name !== 'AbortError') setError(err.message)
       } finally {
         setLoading(false)
       }
     }
 
-    load()
+    const controller = new AbortController()
+    fetchData(controller.signal)
     return () => controller.abort()
   }, [advertiserId, campaignId, range])
+
+  // SSE connection — active only when live toggle is on
+  useEffect(() => {
+    if (!live || !advertiserId || !campaignId || !user?.token) return
+
+    const url = ENDPOINTS.CAMPAIGN_STATS_STREAM(advertiserId, campaignId, user.token)
+    const es = new EventSource(url)
+
+    es.addEventListener('tick', (e) => {
+      const { occurredAt, impressions: imp, clicks: clk } = JSON.parse(e.data)
+      const date = new Date(occurredAt)
+      setImpressions((prev) => [...prev.slice(-LIVE_MAX_POINTS), { date, value: imp }])
+      setClicks((prev) => [...prev.slice(-LIVE_MAX_POINTS), { date, value: clk }])
+    })
+
+    es.onerror = () => setError('Live connection lost. Toggle Live off and on to reconnect.')
+
+    return () => es.close()
+  }, [live, advertiserId, campaignId, user?.token])
+
+  const handleRangeChange = (_, value) => {
+    if (!value) return
+    setRange(value)
+    setLive(false)
+  }
+
+  const handleLiveToggle = () => {
+    setLive((prev) => {
+      if (!prev) setRange(1)
+      return !prev
+    })
+  }
 
   const renderError = () => {
     if (error === '') return null
@@ -133,13 +183,21 @@ export default function TimeseriesChart({ advertiserId, campaignId }) {
             <ToggleButtonGroup
               size="small"
               exclusive
-              value={range}
-              onChange={(_, v) => v && setRange(v)}
+              value={live ? null : range}
+              onChange={handleRangeChange}
             >
               {RANGES.map(({ label, days }) => (
                 <ToggleButton key={days} value={days}>{label}</ToggleButton>
               ))}
             </ToggleButtonGroup>
+            <ToggleButton
+              size="small"
+              value="live"
+              selected={live}
+              onChange={handleLiveToggle}
+            >
+              {live && <LiveDot />}Live
+            </ToggleButton>
             <UtcLabel variant="caption" color="text.secondary">UTC</UtcLabel>
           </RangeControls>
         </ChartHeader>
@@ -158,8 +216,8 @@ export default function TimeseriesChart({ advertiserId, campaignId }) {
               valueFormatter: (v) =>
                 new Date(v).toLocaleString(undefined, {
                   month: 'short', day: 'numeric',
-                  hour: range === 1 ? '2-digit' : undefined,
-                  minute: range === 1 ? '2-digit' : undefined,
+                  hour: (live || range === 1) ? '2-digit' : undefined,
+                  minute: (live || range === 1) ? '2-digit' : undefined,
                 }),
             }]}
             series={[
