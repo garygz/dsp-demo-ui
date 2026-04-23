@@ -1,9 +1,11 @@
 import { styled } from '@mui/material/styles'
-import { Container, Box, Typography, Button, Divider, Stack, Chip, CircularProgress, Avatar, Tooltip } from '@mui/material'
+import { Container, Box, Typography, Button, Divider, Stack, Avatar, Tooltip, Tabs, Tab, CircularProgress } from '@mui/material'
 import { AccountCircle } from '@mui/icons-material'
-import TimeseriesChart from './charts/TimeseriesChart.jsx'
+import { Routes, Route, useNavigate, useLocation } from 'react-router-dom'
 import { useAuth } from './context/AuthContext'
 import Login from './components/Login'
+import CampaignManagement from './pages/CampaignManagement'
+import CampaignStats from './pages/CampaignStats'
 
 const CenteredBox = styled(Box)({
   display: 'flex',
@@ -16,16 +18,15 @@ const PageContainer = styled(Container)(({ theme }) => ({
   minHeight: '100vh',
   display: 'flex',
   flexDirection: 'column',
-  paddingTop: theme.spacing(6),
+  paddingTop: theme.spacing(4),
   paddingBottom: theme.spacing(6),
 }))
 
 const PageContent = styled(Box)({
   display: 'flex',
   flexDirection: 'column',
-  alignItems: 'center',
-  gap: 24,
   flexGrow: 1,
+  gap: 24,
 })
 
 const Header = styled(Box)({
@@ -50,8 +51,15 @@ const UserAvatar = styled(Avatar)(({ theme }) => ({
   backgroundColor: theme.palette.primary.main,
 }))
 
+const ROUTES = [
+  { label: 'Campaign Management', path: '/' },
+  { label: 'Campaign Stats', path: '/stats' },
+]
+
 export default function App() {
   const { user, loading, logout } = useAuth()
+  const navigate = useNavigate()
+  const { pathname } = useLocation()
 
   if (loading) return (
     <CenteredBox>
@@ -62,10 +70,10 @@ export default function App() {
   if (!user) return <Login />
 
   return (
-    <PageContainer maxWidth="md">
+    <PageContainer maxWidth="lg">
       <PageContent>
         <Header>
-          <Title variant="h3">DSP Demo</Title>
+          <Title variant="h4">DSP Demo</Title>
           <UserStack direction="row" spacing={2}>
             <Tooltip title={user.email}>
               <Stack direction="row" spacing={1} alignItems="center">
@@ -81,9 +89,18 @@ export default function App() {
           </UserStack>
         </Header>
 
-        <TimeseriesChart />
+        <Tabs value={pathname} onChange={(_, path) => navigate(path)}>
+          {ROUTES.map(({ label, path }) => (
+            <Tab key={path} label={label} value={path} />
+          ))}
+        </Tabs>
 
-        <Divider flexItem />
+        <Divider />
+
+        <Routes>
+          <Route path="/" element={<CampaignManagement />} />
+          <Route path="/stats" element={<CampaignStats />} />
+        </Routes>
 
       </PageContent>
     </PageContainer>
