@@ -1,0 +1,58 @@
+import { useEffect, useState } from 'react'
+import { Typography } from '@mui/material'
+import { useLocation } from 'react-router-dom'
+import { useAuth } from '../context/AuthContext'
+import TimeseriesChart from '../charts/TimeseriesChart'
+
+export default function CampaignStats() {
+  const { state } = useLocation()
+  const { user } = useAuth()
+  const [advertiserId, setAdvertiserId] = useState(state?.advertiserId ?? null)
+  const [campaignId, setCampaignId] = useState(state?.campaignId ?? null)
+  const [advertiserName, setAdvertiserName] = useState(state?.advertiserName ?? null)
+  const [campaignName, setCampaignName] = useState(state?.campaignName ?? null)
+
+  useEffect(() => {
+    if (advertiserId && campaignId) return
+
+    const resolveDefault = async () => {
+      try {
+        const advRes = await fetch('http://localhost:8080/advertisers', {
+          headers: { Authorization: `Bearer ${user.token}` },
+        })
+        if (!advRes.ok) return
+        const advertisers = await advRes.json()
+        if (!advertisers.length) return
+
+        const firstAdv = advertisers[0]
+        const campRes = await fetch(`http://localhost:8080/advertisers/${firstAdv.id}/campaigns`, {
+          headers: { Authorization: `Bearer ${user.token}` },
+        })
+        if (!campRes.ok) return
+        const campaigns = await campRes.json()
+        if (!campaigns.length) return
+
+        setAdvertiserId(firstAdv.id)
+        setCampaignId(campaigns[0].id)
+        setAdvertiserName(firstAdv.name)
+        setCampaignName(campaigns[0].name)
+      } catch {
+        // leave chart in fallback random-data mode
+      }
+    }
+
+    resolveDefault()
+  }, [])
+
+  return (
+    <>
+      <Typography variant="h5" gutterBottom>Campaign Stats</Typography>
+      {advertiserName && campaignName && (
+        <Typography variant="subtitle2" color="text.secondary">
+          {advertiserName} — {campaignName}
+        </Typography>
+      )}
+      <TimeseriesChart advertiserId={advertiserId} campaignId={campaignId} />
+    </>
+  )
+}

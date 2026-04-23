@@ -97,6 +97,8 @@ export default function TimeseriesChart({ advertiserId, campaignId }) {
           `http://localhost:8080/advertisers/${advertiserId}/campaigns/${campaignId}/stats?from=${from}&to=${to}`,
           { headers: { Authorization: `Bearer ${user.token}` }, signal: controller.signal }
         )
+        if (r.status === 403) throw new Error('Session expired. Please sign out and log in again.')
+        if (!r.ok) throw new Error(`Request failed: ${r.status}`)
         const { impressionsPerDay, clicksPerDay } = await r.json()
         setImpressions(impressionsPerDay.map((d) => ({ date: new Date(d.date), value: d.count })))
         setClicks(clicksPerDay.map((d) => ({ date: new Date(d.date), value: d.count })))
