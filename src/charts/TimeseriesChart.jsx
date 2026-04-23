@@ -3,6 +3,7 @@ import { styled } from '@mui/material/styles'
 import { LineChart } from '@mui/x-charts/LineChart'
 import { Alert, Box, Card, CardContent, CircularProgress, Typography, ToggleButton, ToggleButtonGroup } from '@mui/material'
 import { useAuth } from '../context/AuthContext'
+import { ENDPOINTS } from '../api/endpoints'
 
 const generateSeries = (days, baseOffset = 0, phaseShift = 0) => {
   const now = Date.now()
@@ -94,7 +95,7 @@ export default function TimeseriesChart({ advertiserId, campaignId }) {
         const from = toDateParam(range)
         const to = toDateParam(0)
         const r = await fetch(
-          `http://localhost:8080/advertisers/${advertiserId}/campaigns/${campaignId}/stats?from=${from}&to=${to}`,
+          ENDPOINTS.CAMPAIGN_STATS(advertiserId, campaignId, from, to),
           { headers: { Authorization: `Bearer ${user.token}` }, signal: controller.signal }
         )
         if (r.status === 403) throw new Error('Session expired. Please sign out and log in again.')

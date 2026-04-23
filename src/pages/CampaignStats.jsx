@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { Typography } from '@mui/material'
 import { useLocation } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
+import { ENDPOINTS } from '../api/endpoints'
 import TimeseriesChart from '../charts/TimeseriesChart'
 
 export default function CampaignStats() {
@@ -17,7 +18,7 @@ export default function CampaignStats() {
 
     const resolveDefault = async () => {
       try {
-        const advRes = await fetch('http://localhost:8080/advertisers', {
+        const advRes = await fetch(ENDPOINTS.ADVERTISERS, {
           headers: { Authorization: `Bearer ${user.token}` },
         })
         if (!advRes.ok) return
@@ -25,7 +26,7 @@ export default function CampaignStats() {
         if (!advertisers.length) return
 
         const firstAdv = advertisers[0]
-        const campRes = await fetch(`http://localhost:8080/advertisers/${firstAdv.id}/campaigns`, {
+        const campRes = await fetch(ENDPOINTS.CAMPAIGNS(firstAdv.id), {
           headers: { Authorization: `Bearer ${user.token}` },
         })
         if (!campRes.ok) return
