@@ -3,15 +3,37 @@ import { ENDPOINTS } from '../api/endpoints'
 
 const AuthContext = createContext(null)
 
+const isLocalhost = window.location.hostname === 'localhost' ||
+                    window.location.hostname === '127.0.0.1'
+
 export function AuthProvider({ children }) {
   const [user, setUser] = useState(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
 
   useEffect(() => {
-    const restoreSession = () => {
+    const restoreSession = async () => {
       const stored = sessionStorage.getItem('user')
-      if (stored) setUser(JSON.parse(stored))
+      if (stored) {
+        setUser(JSON.parse(stored))
+        setLoading(false)
+        return
+      }
+
+      if (isLocalhost) {
+        try {
+          const res = await fetch(ENDPOINTS.DEV_LOGIN)
+          if (res.ok) {
+            const { token } = await res.json()
+            const devUser = { email: 'test@test.com', name: 'test', token }
+            sessionStorage.setItem('user', JSON.stringify(devUser))
+            setUser(devUser)
+          }
+        } catch {
+          // bypass unavailable, fall through to login screen
+        }
+      }
+
       setLoading(false)
     }
     restoreSession()
