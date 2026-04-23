@@ -55,7 +55,7 @@ export function LoadGeneratorProvider({ children }) {
           await fetch(ENDPOINTS.CLICKS, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${tokenRef.current}` },
-            body: JSON.stringify({ id: crypto.randomUUID(), impressionId }),
+            body: JSON.stringify({ id: crypto.randomUUID(), impressionId, campaignId: campaignIdRef.current }),
           })
           setClickCount((n) => n + 1)
         }

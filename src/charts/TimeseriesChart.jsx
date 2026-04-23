@@ -5,7 +5,7 @@ import { Alert, Box, Card, CardContent, CircularProgress, Typography, ToggleButt
 import { useAuth } from '../context/AuthContext'
 import { ENDPOINTS } from '../api/endpoints'
 
-const LIVE_INTERVAL_MS = 60_000
+const LIVE_MAX_POINTS = 60
 
 const generateSeries = (days, baseOffset = 0, phaseShift = 0) => {
   const now = Date.now()
@@ -101,6 +101,7 @@ export default function TimeseriesChart({ advertiserId, campaignId }) {
     return () => observer.disconnect()
   }, [])
 
+  // Range fetch — runs on campaign/range changes, and once when live is first enabled
   useEffect(() => {
     if (!advertiserId || !campaignId) return
 
@@ -128,17 +129,27 @@ export default function TimeseriesChart({ advertiserId, campaignId }) {
 
     const controller = new AbortController()
     fetchData(controller.signal)
+    return () => controller.abort()
+  }, [advertiserId, campaignId, range])
 
-    let interval = null
-    if (live) {
-      interval = setInterval(() => fetchData(new AbortController().signal), LIVE_INTERVAL_MS)
-    }
+  // SSE connection — active only when live toggle is on
+  useEffect(() => {
+    if (!live || !advertiserId || !campaignId || !user?.token) return
 
-    return () => {
-      controller.abort()
-      if (interval) clearInterval(interval)
-    }
-  }, [advertiserId, campaignId, range, live])
+    const url = ENDPOINTS.CAMPAIGN_STATS_STREAM(advertiserId, campaignId, user.token)
+    const es = new EventSource(url)
+
+    es.addEventListener('tick', (e) => {
+      const { occurredAt, impressions: imp, clicks: clk } = JSON.parse(e.data)
+      const date = new Date(occurredAt)
+      setImpressions((prev) => [...prev.slice(-LIVE_MAX_POINTS), { date, value: imp }])
+      setClicks((prev) => [...prev.slice(-LIVE_MAX_POINTS), { date, value: clk }])
+    })
+
+    es.onerror = () => setError('Live connection lost. Toggle Live off and on to reconnect.')
+
+    return () => es.close()
+  }, [live, advertiserId, campaignId, user?.token])
 
   const handleRangeChange = (_, value) => {
     if (!value) return
@@ -205,8 +216,8 @@ export default function TimeseriesChart({ advertiserId, campaignId }) {
               valueFormatter: (v) =>
                 new Date(v).toLocaleString(undefined, {
                   month: 'short', day: 'numeric',
-                  hour: range === 1 ? '2-digit' : undefined,
-                  minute: range === 1 ? '2-digit' : undefined,
+                  hour: (live || range === 1) ? '2-digit' : undefined,
+                  minute: (live || range === 1) ? '2-digit' : undefined,
                 }),
             }]}
             series={[

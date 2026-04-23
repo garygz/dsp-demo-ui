@@ -7,6 +7,8 @@ export const ENDPOINTS = {
   CAMPAIGNS:      (advId) => `${BASE}/advertisers/${advId}/campaigns`,
   CAMPAIGN_STATS: (advId, campId, from, to) =>
     `${BASE}/advertisers/${advId}/campaigns/${campId}/stats?from=${from}&to=${to}`,
+  CAMPAIGN_STATS_STREAM: (advId, campId, token) =>
+    `${BASE}/advertisers/${advId}/campaigns/${campId}/stats/stream?token=${encodeURIComponent(token)}`,
   IMPRESSIONS:    `${BASE}/impressions`,
   CLICKS:         `${BASE}/clicks`,
 }
