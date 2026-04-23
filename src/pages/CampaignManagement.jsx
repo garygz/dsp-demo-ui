@@ -7,6 +7,7 @@ import {
 } from '@mui/material'
 import { useNavigate } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
+import { ENDPOINTS } from '../api/endpoints'
 
 const PAGE_SIZE = 10
 
@@ -46,7 +47,7 @@ export default function CampaignManagement() {
       setLoading(true)
       setError('')
       try {
-        const advertisersRes = await fetch('http://localhost:8080/advertisers', {
+        const advertisersRes = await fetch(ENDPOINTS.ADVERTISERS, {
           headers: { Authorization: `Bearer ${user.token}` },
         })
         if (advertisersRes.status === 403) throw new Error('Session expired. Please sign out and log in again.')
@@ -55,7 +56,7 @@ export default function CampaignManagement() {
 
         const campaignLists = await Promise.all(
           advertisers.map((adv) =>
-            fetch(`http://localhost:8080/advertisers/${adv.id}/campaigns`, {
+            fetch(ENDPOINTS.CAMPAIGNS(adv.id), {
               headers: { Authorization: `Bearer ${user.token}` },
             }).then((r) => {
               if (r.status === 403) throw new Error('Session expired. Please sign out and log in again.')
