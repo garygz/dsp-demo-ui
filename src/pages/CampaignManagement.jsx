@@ -8,6 +8,7 @@ import {
 import { useNavigate } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
 import { ENDPOINTS } from '../api/endpoints'
+import { apiFetch } from '../api/apiFetch'
 
 const PAGE_SIZE = 10
 
@@ -47,23 +48,10 @@ export default function CampaignManagement() {
       setLoading(true)
       setError('')
       try {
-        const advertisersRes = await fetch(ENDPOINTS.ADVERTISERS, {
-          headers: { Authorization: `Bearer ${user.token}` },
-        })
-        if (advertisersRes.status === 403) throw new Error('Session expired. Please sign out and log in again.')
-        if (!advertisersRes.ok) throw new Error(`Request failed: ${advertisersRes.status}`)
-        const advertisers = await advertisersRes.json()
+        const advertisers = await apiFetch(ENDPOINTS.ADVERTISERS, user.token)
 
         const campaignLists = await Promise.all(
-          advertisers.map((adv) =>
-            fetch(ENDPOINTS.CAMPAIGNS(adv.id), {
-              headers: { Authorization: `Bearer ${user.token}` },
-            }).then((r) => {
-              if (r.status === 403) throw new Error('Session expired. Please sign out and log in again.')
-              if (!r.ok) throw new Error(`Request failed: ${r.status}`)
-              return r.json()
-            })
-          )
+          advertisers.map((adv) => apiFetch(ENDPOINTS.CAMPAIGNS(adv.id), user.token))
         )
         setGroups(advertisers.map((adv, i) => ({ advertiser: adv, campaigns: campaignLists[i] })))
       } catch (err) {
@@ -107,7 +95,9 @@ export default function CampaignManagement() {
     )
     return groups.map(({ advertiser, campaigns }) => {
       const page = getPage(advertiser.id)
-      const paginated = campaigns.slice(page * PAGE_SIZE, page * PAGE_SIZE + PAGE_SIZE)
+      const startIx = page * PAGE_SIZE
+      const endIx = startIx + PAGE_SIZE;
+      const paginated = campaigns.slice(startIx, endIx);
       return (
         <AdvertiserSection key={advertiser.id}>
           <Typography variant="subtitle1" fontWeight={600}>Showing results for advertiser: {advertiser.name}</Typography>

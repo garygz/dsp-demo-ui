@@ -1,29 +1,29 @@
 import { createContext, useCallback, useContext, useEffect, useRef, useState } from 'react'
 import { useAuth } from './AuthContext'
 import { ENDPOINTS } from '../api/endpoints'
+import { apiFetch } from '../api/apiFetch'
 
 const CLICK_RATIO = 0.3
 const AUTO_STOP_MS = 10 * 60 * 1000 // 10 minutes
+const BATCH_INTERVAL_MS = 5_000
 
 const LoadGeneratorContext = createContext(null)
 
 export function LoadGeneratorProvider({ children }) {
   const { user } = useAuth()
 
-  const [advertiserId, setAdvertiserId] = useState('')
-  const [campaignId, setCampaignId] = useState('')
   const [rate, setRate] = useState(60)
   const [running, setRunning] = useState(false)
-  const [impressionCount, setImpressionCount] = useState(0)
-  const [clickCount, setClickCount] = useState(0)
 
   const intervalRef = useRef(null)
   const timeoutRef = useRef(null)
-  // Refs so the interval callback always sees current values without re-creating the interval
-  const campaignIdRef = useRef(campaignId)
+  const campaignIdRef = useRef('')
   const tokenRef = useRef(user?.token)
+  const onImpressionRef = useRef(null)
+  const onClickRef = useRef(null)
+  const impressionTotalRef = useRef(0)
+  const clickTotalRef = useRef(0)
 
-  useEffect(() => { campaignIdRef.current = campaignId }, [campaignId])
   useEffect(() => { tokenRef.current = user?.token }, [user?.token])
 
   const stop = useCallback(() => {
@@ -32,40 +32,68 @@ export function LoadGeneratorProvider({ children }) {
     clearTimeout(timeoutRef.current)
   }, [])
 
-  const start = useCallback(() => {
-    setImpressionCount(0)
-    setClickCount(0)
+  const registerCallbacks = useCallback(({ onImpression, onClick }) => {
+    onImpressionRef.current = onImpression ?? null
+    onClickRef.current = onClick ?? null
+  }, [])
+
+  const start = useCallback((campaignId) => {
+    campaignIdRef.current = campaignId
+    impressionTotalRef.current = 0
+    clickTotalRef.current = 0
     setRunning(true)
   }, [])
+
+  const getCounts = useCallback(() => ({
+    impressions: impressionTotalRef.current,
+    clicks: clickTotalRef.current,
+  }), [])
 
   useEffect(() => {
     if (!running) return
 
     const fire = async () => {
-      const impressionId = crypto.randomUUID()
-      try {
-        await fetch(ENDPOINTS.IMPRESSIONS, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${tokenRef.current}` },
-          body: JSON.stringify({ id: impressionId, campaignId: campaignIdRef.current }),
-        })
-        setImpressionCount((n) => n + 1)
+      const campaignId = campaignIdRef.current
+      const batchSize  = Math.max(1, Math.round(rate * BATCH_INTERVAL_MS / 60_000))
 
-        if (Math.random() < CLICK_RATIO) {
-          await fetch(ENDPOINTS.CLICKS, {
+      const impressionsBatch = Array.from({ length: batchSize }, () => ({
+        id: crypto.randomUUID(),
+        campaignId,
+      }))
+
+      const clicksBatch = impressionsBatch
+        .filter(() => Math.random() < CLICK_RATIO)
+        .map(({ id: impressionId }) => ({
+          id: crypto.randomUUID(),
+          impressionId,
+          campaignId,
+        }))
+
+      try {
+        await apiFetch(ENDPOINTS.IMPRESSIONS_BATCH, tokenRef.current, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(impressionsBatch),
+        })
+        impressionTotalRef.current += impressionsBatch.length
+        impressionsBatch.forEach(() => onImpressionRef.current?.())
+
+        if (clicksBatch.length > 0) {
+          await apiFetch(ENDPOINTS.CLICKS_BATCH, tokenRef.current, {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${tokenRef.current}` },
-            body: JSON.stringify({ id: crypto.randomUUID(), impressionId, campaignId: campaignIdRef.current }),
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(clicksBatch),
           })
-          setClickCount((n) => n + 1)
+          clickTotalRef.current += clicksBatch.length
+          clicksBatch.forEach(() => onClickRef.current?.())
         }
       } catch {
         // non-fatal, keep running
       }
     }
 
-    const intervalMs = Math.round(60_000 / rate)
-    intervalRef.current = setInterval(fire, intervalMs)
+    fire()
+    intervalRef.current = setInterval(fire, BATCH_INTERVAL_MS)
     timeoutRef.current = setTimeout(stop, AUTO_STOP_MS)
 
     return () => {
@@ -76,11 +104,8 @@ export function LoadGeneratorProvider({ children }) {
 
   return (
     <LoadGeneratorContext.Provider value={{
-      advertiserId, setAdvertiserId,
-      campaignId, setCampaignId,
       rate, setRate,
-      running, start, stop,
-      impressionCount, clickCount,
+      running, start, stop, registerCallbacks, getCounts,
     }}>
       {children}
     </LoadGeneratorContext.Provider>

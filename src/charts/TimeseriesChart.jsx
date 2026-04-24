@@ -3,7 +3,9 @@ import { styled } from '@mui/material/styles'
 import { LineChart } from '@mui/x-charts/LineChart'
 import { Alert, Box, Card, CardContent, CircularProgress, Typography, ToggleButton, ToggleButtonGroup } from '@mui/material'
 import { useAuth } from '../context/AuthContext'
+import { useLoadGenerator } from '../context/LoadGeneratorContext'
 import { ENDPOINTS } from '../api/endpoints'
+import { apiFetch } from '../api/apiFetch'
 
 const LIVE_MAX_POINTS = 60
 
@@ -83,6 +85,7 @@ const ErrorAlert = styled(Alert)(({ theme }) => ({
 
 export default function TimeseriesChart({ advertiserId, campaignId }) {
   const { user } = useAuth()
+  const { running } = useLoadGenerator()
   const [range, setRange] = useState(7)
   const [live, setLive] = useState(false)
   const [impressions, setImpressions] = useState([])
@@ -111,13 +114,11 @@ export default function TimeseriesChart({ advertiserId, campaignId }) {
       try {
         const from = toDateParam(range)
         const to = toDateParam(0)
-        const r = await fetch(
+        const { impressionsPerDay, clicksPerDay } = await apiFetch(
           ENDPOINTS.CAMPAIGN_STATS(advertiserId, campaignId, from, to),
-          { headers: { Authorization: `Bearer ${user.token}` }, signal }
+          user.token,
+          { signal }
         )
-        if (r.status === 403) throw new Error('Session expired. Please sign out and log in again.')
-        if (!r.ok) throw new Error(`Request failed: ${r.status}`)
-        const { impressionsPerDay, clicksPerDay } = await r.json()
         setImpressions(impressionsPerDay.map((d) => ({ date: new Date(d.date), value: d.count })))
         setClicks(clicksPerDay.map((d) => ({ date: new Date(d.date), value: d.count })))
       } catch (err) {
@@ -140,13 +141,17 @@ export default function TimeseriesChart({ advertiserId, campaignId }) {
     const es = new EventSource(url)
 
     es.addEventListener('tick', (e) => {
+      console.log('Tick event', e);
       const { occurredAt, impressions: imp, clicks: clk } = JSON.parse(e.data)
       const date = new Date(occurredAt)
       setImpressions((prev) => [...prev.slice(-LIVE_MAX_POINTS), { date, value: imp }])
       setClicks((prev) => [...prev.slice(-LIVE_MAX_POINTS), { date, value: clk }])
     })
 
-    es.onerror = () => setError('Live connection lost. Toggle Live off and on to reconnect.')
+    es.onerror = (err) => {
+      console.log(err);
+      setError('Live connection lost. Toggle Live off and on to reconnect.')
+    }
 
     return () => es.close()
   }, [live, advertiserId, campaignId, user?.token])
@@ -169,8 +174,8 @@ export default function TimeseriesChart({ advertiserId, campaignId }) {
     return <ErrorAlert severity="error">{error}</ErrorAlert>
   }
 
-  const fallback1 = generateSeries(range, 0, 0)
-  const fallback2 = generateSeries(range, -10, Math.PI / 2)
+  const fallback1 = live ? [] : generateSeries(range, 0, 0)
+  const fallback2 = live ? [] : generateSeries(range, -10, Math.PI / 2)
   const impData = impressions.length ? impressions : fallback1
   const clickData = clicks.length ? clicks : fallback2
 
@@ -201,6 +206,9 @@ export default function TimeseriesChart({ advertiserId, campaignId }) {
             <UtcLabel variant="caption" color="text.secondary">UTC</UtcLabel>
           </RangeControls>
         </ChartHeader>
+        {live && !running && (
+          <Alert severity="info" sx={{ mb: 1 }}>Start the Load Generator to see live data.</Alert>
+        )}
         {renderError()}
         <div ref={containerRef} style={chartWrapperStyle}>
           {loading && (
@@ -226,6 +234,9 @@ export default function TimeseriesChart({ advertiserId, campaignId }) {
             ]}
             height={300}
           />
+          {live && (
+            <Typography variant="caption" color="text.secondary">Streaming · 1 min</Typography>
+          )}
         </div>
       </CardContent>
     </ChartCard>
