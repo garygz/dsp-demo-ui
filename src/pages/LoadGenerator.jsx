@@ -7,6 +7,7 @@ import {
 import { useAuth } from '../context/AuthContext'
 import { useLoadGenerator } from '../context/LoadGeneratorContext'
 import { ENDPOINTS } from '../api/endpoints'
+import { apiFetch } from '../api/apiFetch'
 
 const ControlCard = styled(Card)({ maxWidth: 600 })
 
@@ -30,28 +31,32 @@ const StatChip = styled(Chip)(({ theme }) => ({
 
 export default function LoadGenerator() {
   const { user } = useAuth()
-  const {
-    advertiserId, setAdvertiserId,
-    campaignId, setCampaignId,
-    rate, setRate,
-    running, start, stop,
-    impressionCount, clickCount,
-  } = useLoadGenerator()
+  const { rate, setRate, running, start, stop, registerCallbacks, getCounts } = useLoadGenerator()
 
+  const [advertiserId, setAdvertiserId] = useState('')
+  const [campaignId, setCampaignId] = useState('')
   const [advertisers, setAdvertisers] = useState([])
   const [campaigns, setCampaigns] = useState([])
   const [loadingCampaigns, setLoadingCampaigns] = useState(false)
   const [error, setError] = useState('')
+  const [impressionCount, setImpressionCount] = useState(0)
+  const [clickCount, setClickCount] = useState(0)
+
+  useEffect(() => {
+    const { impressions, clicks } = getCounts()
+    setImpressionCount(impressions)
+    setClickCount(clicks)
+    registerCallbacks({
+      onImpression: () => setImpressionCount((n) => n + 1),
+      onClick: () => setClickCount((n) => n + 1),
+    })
+    return () => registerCallbacks({ onImpression: null, onClick: null })
+  }, [registerCallbacks, getCounts])
 
   useEffect(() => {
     const fetchAdvertisers = async () => {
       try {
-        const res = await fetch(ENDPOINTS.ADVERTISERS, {
-          headers: { Authorization: `Bearer ${user.token}` },
-        })
-        if (res.status === 403) throw new Error('Session expired. Please sign out and log in again.')
-        if (!res.ok) throw new Error(`Request failed: ${res.status}`)
-        const data = await res.json()
+        const data = await apiFetch(ENDPOINTS.ADVERTISERS, user.token)
         setAdvertisers(data)
         if (!advertiserId && data.length > 0) setAdvertiserId(data[0].id)
       } catch (err) {
@@ -67,12 +72,7 @@ export default function LoadGenerator() {
       setLoadingCampaigns(true)
       setCampaigns([])
       try {
-        const res = await fetch(ENDPOINTS.CAMPAIGNS(advertiserId), {
-          headers: { Authorization: `Bearer ${user.token}` },
-        })
-        if (res.status === 403) throw new Error('Session expired. Please sign out and log in again.')
-        if (!res.ok) throw new Error(`Request failed: ${res.status}`)
-        const data = await res.json()
+        const data = await apiFetch(ENDPOINTS.CAMPAIGNS(advertiserId), user.token)
         setCampaigns(data)
         if (!campaignId && data.length > 0) setCampaignId(data[0].id)
       } catch (err) {
@@ -150,7 +150,11 @@ export default function LoadGenerator() {
               <Button
                 variant="contained"
                 color={running ? 'error' : 'primary'}
-                onClick={running ? stop : start}
+                onClick={running ? stop : () => {
+                  setImpressionCount(0)
+                  setClickCount(0)
+                  start(campaignId)
+                }}
                 disabled={!campaignId}
                 size="large"
               >
@@ -159,7 +163,7 @@ export default function LoadGenerator() {
               {running && <CircularProgress size={24} />}
               {running && (
                 <Typography variant="caption" color="text.secondary">
-                  Auto-stops after 10 min
+                  Batched · 5 sec intervals · Auto-stops after 10 min
                 </Typography>
               )}
             </ControlRow>
