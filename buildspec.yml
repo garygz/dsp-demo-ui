@@ -1,0 +1,37 @@
+version: 0.2
+
+phases:
+  install:
+    runtime-versions:
+      nodejs: 20
+    commands:
+      - npm ci
+
+  build:
+    commands:
+      # VITE_API_BASE_URL and VITE_SENTRY_DSN are injected by CodeBuild environment variables.
+      # They override anything in .env.production at Vite build time.
+      - npm run build
+
+  post_build:
+    commands:
+      # Hashed asset files (JS/CSS bundles) — immutable, cache for 1 year in the browser
+      - |
+        aws s3 sync dist/ s3://$S3_BUCKET \
+          --delete \
+          --exclude "index.html" \
+          --cache-control "public,max-age=31536000,immutable"
+
+      # index.html — never cache; always fetch fresh so users get the latest shell
+      - |
+        aws s3 cp dist/index.html s3://$S3_BUCKET/index.html \
+          --cache-control "no-cache,no-store,must-revalidate" \
+          --content-type "text/html"
+
+      # Invalidate CloudFront so the new index.html is served immediately
+      - aws cloudfront create-invalidation --distribution-id $CLOUDFRONT_DISTRIBUTION_ID --paths "/index.html"
+
+artifacts:
+  files:
+    - "**/*"
+  base-directory: dist
