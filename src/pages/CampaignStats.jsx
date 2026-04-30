@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { Typography } from '@mui/material'
 import { useLocation } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
+import { useChartState } from '../context/ChartStateContext'
 import { ENDPOINTS } from '../api/endpoints'
 import { apiFetch } from '../api/apiFetch'
 import TimeseriesChart from '../charts/TimeseriesChart'
@@ -13,6 +14,15 @@ export default function CampaignStats() {
   const [campaignId, setCampaignId] = useState(state?.campaignId ?? null)
   const [advertiserName, setAdvertiserName] = useState(state?.advertiserName ?? null)
   const [campaignName, setCampaignName] = useState(state?.campaignName ?? null)
+  const { setLive, setRange } = useChartState()
+
+  // When navigating here from Load Generator, switch chart into live mode
+  useEffect(() => {
+    if (state?.initialLive) {
+      setLive(true)
+      setRange(1)
+    }
+  }, [])
 
   useEffect(() => {
     if (advertiserId && campaignId) return

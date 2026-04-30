@@ -4,6 +4,7 @@ import { AccountCircle } from '@mui/icons-material'
 import { Routes, Route, useNavigate, useLocation } from 'react-router-dom'
 import { useAuth } from './context/AuthContext'
 import { LoadGeneratorProvider, useLoadGenerator } from './context/LoadGeneratorContext'
+import { ChartStateProvider } from './context/ChartStateContext'
 import Login from './components/Login'
 import CampaignManagement from './pages/CampaignManagement'
 import CampaignStats from './pages/CampaignStats'
@@ -138,7 +139,9 @@ export default function App() {
   if (!user) return <Login />
   return (
     <LoadGeneratorProvider>
-      <AppShell />
+      <ChartStateProvider>
+        <AppShell />
+      </ChartStateProvider>
     </LoadGeneratorProvider>
   )
 }

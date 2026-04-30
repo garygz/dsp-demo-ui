@@ -4,6 +4,7 @@ import {
   Typography, Box, Card, CardContent, Button, Slider,
   MenuItem, Select, FormControl, InputLabel, CircularProgress, Alert, Chip
 } from '@mui/material'
+import { useNavigate } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
 import { useLoadGenerator } from '../context/LoadGeneratorContext'
 import { ENDPOINTS } from '../api/endpoints'
@@ -32,6 +33,7 @@ const StatChip = styled(Chip)(({ theme }) => ({
 export default function LoadGenerator() {
   const { user } = useAuth()
   const { rate, setRate, running, start, stop, registerCallbacks, getCounts } = useLoadGenerator()
+  const navigate = useNavigate()
 
   const [advertiserId, setAdvertiserId] = useState('')
   const [campaignId, setCampaignId] = useState('')
@@ -159,6 +161,22 @@ export default function LoadGenerator() {
                 size="large"
               >
                 {running ? 'Stop' : 'Start'}
+              </Button>
+              <Button
+                variant="outlined"
+                disabled={!campaignId}
+                sx={{ minWidth: 140, whiteSpace: 'nowrap' }}
+                onClick={() => navigate('/stats', {
+                  state: {
+                    advertiserId,
+                    campaignId,
+                    advertiserName: advertisers.find((a) => a.id === advertiserId)?.name,
+                    campaignName: campaigns.find((c) => c.id === campaignId)?.name,
+                    initialLive: true,
+                  }
+                })}
+              >
+                Show Live Stats
               </Button>
               {running && <CircularProgress size={24} />}
               {running && (

@@ -4,20 +4,28 @@ import { LineChart } from '@mui/x-charts/LineChart'
 import { Alert, Box, Card, CardContent, CircularProgress, Typography, ToggleButton, ToggleButtonGroup } from '@mui/material'
 import { useAuth } from '../context/AuthContext'
 import { useLoadGenerator } from '../context/LoadGeneratorContext'
+import { useChartState } from '../context/ChartStateContext'
 import { ENDPOINTS } from '../api/endpoints'
 import { apiFetch } from '../api/apiFetch'
 
 const LIVE_MAX_POINTS = 60
 
+const MS_PER_HOUR = 3_600_000
+
 const generateSeries = (days, baseOffset = 0, phaseShift = 0) => {
   const now = Date.now()
-  const msPerDay = 86400000
-  const points = days * 24
-  return Array.from({ length: points }, (_, i) => {
-    const t = now - (points - i) * (msPerDay / 24)
-    const base = 50 + baseOffset + 20 * Math.sin((i / points) * 2 * Math.PI + phaseShift)
+  const totalPoints = days * 24 // one point per hour
+
+  return Array.from({ length: totalPoints }, (_, i) => {
+    const hoursAgo = totalPoints - i
+    const timestamp = now - hoursAgo * MS_PER_HOUR
+
+    const progress = i / totalPoints // 0 → 1 across the time window
+    const wave = 20 * Math.sin(progress * 2 * Math.PI + phaseShift)
     const noise = (Math.random() - 0.5) * 10
-    return { date: new Date(t), value: +(base + noise).toFixed(2) }
+    const value = 50 + baseOffset + wave + noise
+
+    return { date: new Date(timestamp), value: +value.toFixed(2) }
   })
 }
 
@@ -86,10 +94,21 @@ const ErrorAlert = styled(Alert)(({ theme }) => ({
 export default function TimeseriesChart({ advertiserId, campaignId }) {
   const { user } = useAuth()
   const { running } = useLoadGenerator()
-  const [range, setRange] = useState(7)
-  const [live, setLive] = useState(false)
-  const [impressions, setImpressions] = useState([])
-  const [clicks, setClicks] = useState([])
+  const {
+    live, setLive, range, setRange,
+    liveImpressions, setLiveImpressions,
+    liveClicks, setLiveClicks,
+    liveCampaignId, setLiveCampaignId,
+  } = useChartState()
+
+  // On mount: restore previously received SSE data if same campaign and live is on
+  const hasSavedLiveData = live && liveCampaignId === campaignId && liveImpressions.length > 0
+  const [impressions, setImpressions] = useState(() => hasSavedLiveData ? liveImpressions : [])
+  const [clicks, setClicks] = useState(() => hasSavedLiveData ? liveClicks : [])
+
+  // Skip the range fetch on mount when we already restored live data
+  const skipNextRangeFetch = useRef(hasSavedLiveData)
+
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
   const [chartWidth, setChartWidth] = useState(600)
@@ -104,9 +123,14 @@ export default function TimeseriesChart({ advertiserId, campaignId }) {
     return () => observer.disconnect()
   }, [])
 
-  // Range fetch — runs on campaign/range changes, and once when live is first enabled
+  // Range fetch — skipped on remount when live data was restored from context
   useEffect(() => {
     if (!advertiserId || !campaignId) return
+
+    if (skipNextRangeFetch.current) {
+      skipNextRangeFetch.current = false
+      return
+    }
 
     const fetchData = async (signal) => {
       setLoading(true)
@@ -133,6 +157,15 @@ export default function TimeseriesChart({ advertiserId, campaignId }) {
     return () => controller.abort()
   }, [advertiserId, campaignId, range])
 
+  // Clear saved live data when the campaign changes
+  useEffect(() => {
+    if (campaignId && campaignId !== liveCampaignId) {
+      setLiveImpressions([])
+      setLiveClicks([])
+      setLiveCampaignId(campaignId)
+    }
+  }, [campaignId])
+
   // SSE connection — active only when live toggle is on
   useEffect(() => {
     if (!live || !advertiserId || !campaignId || !user?.token) return
@@ -141,15 +174,22 @@ export default function TimeseriesChart({ advertiserId, campaignId }) {
     const es = new EventSource(url)
 
     es.addEventListener('tick', (e) => {
-      console.log('Tick event', e);
       const { occurredAt, impressions: imp, clicks: clk } = JSON.parse(e.data)
       const date = new Date(occurredAt)
-      setImpressions((prev) => [...prev.slice(-LIVE_MAX_POINTS), { date, value: imp }])
-      setClicks((prev) => [...prev.slice(-LIVE_MAX_POINTS), { date, value: clk }])
+
+      setImpressions((prev) => {
+        const next = [...prev.slice(-LIVE_MAX_POINTS), { date, value: imp }]
+        setLiveImpressions(next)
+        return next
+      })
+      setClicks((prev) => {
+        const next = [...prev.slice(-LIVE_MAX_POINTS), { date, value: clk }]
+        setLiveClicks(next)
+        return next
+      })
     })
 
-    es.onerror = (err) => {
-      console.log(err);
+    es.onerror = () => {
       setError('Live connection lost. Toggle Live off and on to reconnect.')
     }
 
@@ -175,7 +215,7 @@ export default function TimeseriesChart({ advertiserId, campaignId }) {
   }
 
   const fallback1 = live ? [] : generateSeries(range, 0, 0)
-  const fallback2 = live ? [] : generateSeries(range, -10, Math.PI / 2)
+  const fallback2 = fallback1.map((point) => ({ date: point.date, value: +(point.value * 0.1).toFixed(2) }))
   const impData = impressions.length ? impressions : fallback1
   const clickData = clicks.length ? clicks : fallback2
 
