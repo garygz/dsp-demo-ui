@@ -11,6 +11,11 @@ export function ChartStateProvider({ children }) {
   const [liveClicks, setLiveClicks] = useState([])
   const [liveCampaignId, setLiveCampaignId] = useState(null)
 
+  // Persisted campaign selection — so CampaignStats restores immediately on remount
+  const [lastAdvertiserId, setLastAdvertiserId] = useState(null)
+  const [lastAdvertiserName, setLastAdvertiserName] = useState(null)
+  const [lastCampaignName, setLastCampaignName] = useState(null)
+
   return (
     <ChartStateContext.Provider value={{
       live, setLive,
@@ -18,6 +23,9 @@ export function ChartStateProvider({ children }) {
       liveImpressions, setLiveImpressions,
       liveClicks, setLiveClicks,
       liveCampaignId, setLiveCampaignId,
+      lastAdvertiserId, setLastAdvertiserId,
+      lastAdvertiserName, setLastAdvertiserName,
+      lastCampaignName, setLastCampaignName,
     }}>
       {children}
     </ChartStateContext.Provider>

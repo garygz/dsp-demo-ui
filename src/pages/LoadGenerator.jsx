@@ -9,6 +9,7 @@ import { useAuth } from '../context/AuthContext'
 import { useLoadGenerator } from '../context/LoadGeneratorContext'
 import { ENDPOINTS } from '../api/endpoints'
 import { apiFetch } from '../api/apiFetch'
+import { captureError } from '../lib/sentry'
 
 const ControlCard = styled(Card)({ maxWidth: 600 })
 
@@ -62,6 +63,7 @@ export default function LoadGenerator() {
         setAdvertisers(data)
         if (!advertiserId && data.length > 0) setAdvertiserId(data[0].id)
       } catch (err) {
+        captureError(err, { page: 'LoadGenerator', action: 'fetchAdvertisers' })
         setError(err.message)
       }
     }
@@ -78,6 +80,7 @@ export default function LoadGenerator() {
         setCampaigns(data)
         if (!campaignId && data.length > 0) setCampaignId(data[0].id)
       } catch (err) {
+        captureError(err, { page: 'LoadGenerator', action: 'fetchCampaigns', advertiserId })
         setError(err.message)
       } finally {
         setLoadingCampaigns(false)
