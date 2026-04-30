@@ -9,6 +9,7 @@ import { useNavigate } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
 import { ENDPOINTS } from '../api/endpoints'
 import { apiFetch } from '../api/apiFetch'
+import { captureError } from '../lib/sentry'
 
 const PAGE_SIZE = 10
 const STORAGE_KEY = 'campaign-column-widths'
@@ -116,6 +117,7 @@ export default function CampaignManagement() {
         setGroups(loaded)
         if (loaded.length > 0) setSelectedAdvertiserId(loaded[0].advertiser.id)
       } catch (err) {
+        captureError(err, { page: 'CampaignManagement', action: 'load' })
         setError(err.message)
       } finally {
         setLoading(false)

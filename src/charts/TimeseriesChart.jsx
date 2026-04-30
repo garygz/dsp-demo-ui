@@ -7,10 +7,14 @@ import { useLoadGenerator } from '../context/LoadGeneratorContext'
 import { useChartState } from '../context/ChartStateContext'
 import { ENDPOINTS } from '../api/endpoints'
 import { apiFetch } from '../api/apiFetch'
+import { captureError } from '../lib/sentry'
 
 const LIVE_MAX_POINTS = 60
 
 const MS_PER_HOUR = 3_600_000
+
+const isDev = import.meta.env.DEV
+const log = (...args) => { if (isDev) console.log('[TimeseriesChart]', ...args) }
 
 const generateSeries = (days, baseOffset = 0, phaseShift = 0) => {
   const now = Date.now()
@@ -103,11 +107,9 @@ export default function TimeseriesChart({ advertiserId, campaignId }) {
 
   // On mount: restore previously received SSE data if same campaign and live is on
   const hasSavedLiveData = live && liveCampaignId === campaignId && liveImpressions.length > 0
+  log('mount', { campaignId, live, liveCampaignId, savedPoints: liveImpressions.length, hasSavedLiveData })
   const [impressions, setImpressions] = useState(() => hasSavedLiveData ? liveImpressions : [])
   const [clicks, setClicks] = useState(() => hasSavedLiveData ? liveClicks : [])
-
-  // Skip the range fetch on mount when we already restored live data
-  const skipNextRangeFetch = useRef(hasSavedLiveData)
 
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
@@ -127,12 +129,13 @@ export default function TimeseriesChart({ advertiserId, campaignId }) {
   useEffect(() => {
     if (!advertiserId || !campaignId) return
 
-    if (skipNextRangeFetch.current) {
-      skipNextRangeFetch.current = false
+    if (live) {
+      log('range fetch skipped — live mode active')
       return
     }
 
     const fetchData = async (signal) => {
+      log('range fetch start', { advertiserId, campaignId, range })
       setLoading(true)
       setError('')
       try {
@@ -143,10 +146,16 @@ export default function TimeseriesChart({ advertiserId, campaignId }) {
           user.token,
           { signal }
         )
-        setImpressions(impressionsPerDay.map((d) => ({ date: new Date(d.date), value: d.count })))
-        setClicks(clicksPerDay.map((d) => ({ date: new Date(d.date), value: d.count })))
+        const imp = impressionsPerDay.map((d) => ({ date: new Date(d.date), value: d.count }))
+        const clk = clicksPerDay.map((d) => ({ date: new Date(d.date), value: d.count }))
+        log('range fetch done', { impressions: imp.length, clicks: clk.length })
+        setImpressions(imp)
+        setClicks(clk)
       } catch (err) {
-        if (err.name !== 'AbortError') setError(err.message)
+        if (err.name !== 'AbortError') {
+          captureError(err, { chart: 'TimeseriesChart', action: 'rangeFetch', advertiserId, campaignId, range })
+          setError(err.message)
+        }
       } finally {
         setLoading(false)
       }
@@ -155,11 +164,12 @@ export default function TimeseriesChart({ advertiserId, campaignId }) {
     const controller = new AbortController()
     fetchData(controller.signal)
     return () => controller.abort()
-  }, [advertiserId, campaignId, range])
+  }, [live, advertiserId, campaignId, range])
 
   // Clear saved live data when the campaign changes
   useEffect(() => {
     if (campaignId && campaignId !== liveCampaignId) {
+      log('campaign changed — clearing live data', { from: liveCampaignId, to: campaignId })
       setLiveImpressions([])
       setLiveClicks([])
       setLiveCampaignId(campaignId)
@@ -179,6 +189,7 @@ export default function TimeseriesChart({ advertiserId, campaignId }) {
 
       setImpressions((prev) => {
         const next = [...prev.slice(-LIVE_MAX_POINTS), { date, value: imp }]
+        log('Add tick - imp', next[next.length - 1])
         setLiveImpressions(next)
         return next
       })
@@ -189,7 +200,10 @@ export default function TimeseriesChart({ advertiserId, campaignId }) {
       })
     })
 
-    es.onerror = () => {
+    es.onerror = (e) => {
+      const err = new Error('SSE connection error')
+      captureError(err, { chart: 'TimeseriesChart', action: 'sseError', advertiserId, campaignId })
+      log('SSE error', e)
       setError('Live connection lost. Toggle Live off and on to reconnect.')
     }
 
@@ -266,6 +280,7 @@ export default function TimeseriesChart({ advertiserId, campaignId }) {
                   month: 'short', day: 'numeric',
                   hour: (live || range === 1) ? '2-digit' : undefined,
                   minute: (live || range === 1) ? '2-digit' : undefined,
+                  second: live ? '2-digit' : undefined,
                 }),
             }]}
             series={[
@@ -275,7 +290,7 @@ export default function TimeseriesChart({ advertiserId, campaignId }) {
             height={300}
           />
           {live && (
-            <Typography variant="caption" color="text.secondary">Streaming · 1 min</Typography>
+            <Typography variant="caption" color="text.secondary">Streaming · 15 sec</Typography>
           )}
         </div>
       </CardContent>
