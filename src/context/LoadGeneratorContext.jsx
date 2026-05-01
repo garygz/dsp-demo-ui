@@ -2,6 +2,8 @@ import { createContext, useCallback, useContext, useEffect, useRef, useState } f
 import { useAuth } from './AuthContext'
 import { ENDPOINTS } from '../api/endpoints'
 import { apiFetch } from '../api/apiFetch'
+import { captureError } from '../lib/sentry'
+import { randomUUID } from '../lib/uuid'
 
 const CLICK_RATIO = 0.3
 const AUTO_STOP_MS = 10 * 60 * 1000 // 10 minutes
@@ -57,14 +59,14 @@ export function LoadGeneratorProvider({ children }) {
       const batchSize  = Math.max(1, Math.round(rate * BATCH_INTERVAL_MS / 60_000))
 
       const impressionsBatch = Array.from({ length: batchSize }, () => ({
-        id: crypto.randomUUID(),
+        id: randomUUID(),
         campaignId,
       }))
 
       const clicksBatch = impressionsBatch
         .filter(() => Math.random() < CLICK_RATIO)
         .map(({ id: impressionId }) => ({
-          id: crypto.randomUUID(),
+          id: randomUUID(),
           impressionId,
           campaignId,
         }))
@@ -87,8 +89,9 @@ export function LoadGeneratorProvider({ children }) {
           clickTotalRef.current += clicksBatch.length
           clicksBatch.forEach(() => onClickRef.current?.())
         }
-      } catch {
-        // non-fatal, keep running
+      } catch (err) {
+        captureError(err, { context: 'LoadGeneratorContext', action: 'fire' })
+        console.error('[LoadGenerator] batch failed:', err.message)
       }
     }
 
