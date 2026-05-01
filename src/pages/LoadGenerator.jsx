@@ -59,7 +59,7 @@ export default function LoadGenerator() {
   useEffect(() => {
     const fetchAdvertisers = async () => {
       try {
-        const data = await apiFetch(ENDPOINTS.ADVERTISERS, user.token)
+        const { data } = await apiFetch(ENDPOINTS.ADVERTISERS, user.token)
         setAdvertisers(data)
         if (!advertiserId && data.length > 0) setAdvertiserId(data[0].id)
       } catch (err) {
@@ -76,7 +76,7 @@ export default function LoadGenerator() {
       setLoadingCampaigns(true)
       setCampaigns([])
       try {
-        const data = await apiFetch(ENDPOINTS.CAMPAIGNS(advertiserId), user.token)
+        const { data } = await apiFetch(ENDPOINTS.CAMPAIGNS(advertiserId), user.token)
         setCampaigns(data)
         if (!campaignId && data.length > 0) setCampaignId(data[0].id)
       } catch (err) {

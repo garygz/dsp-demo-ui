@@ -109,11 +109,11 @@ export default function CampaignManagement() {
       setLoading(true)
       setError('')
       try {
-        const advertisers = await apiFetch(ENDPOINTS.ADVERTISERS, user.token)
+        const { data: advertisers } = await apiFetch(ENDPOINTS.ADVERTISERS, user.token)
         const campaignLists = await Promise.all(
           advertisers.map((adv) => apiFetch(ENDPOINTS.CAMPAIGNS(adv.id), user.token))
         )
-        const loaded = advertisers.map((adv, i) => ({ advertiser: adv, campaigns: campaignLists[i] }))
+        const loaded = advertisers.map((adv, i) => ({ advertiser: adv, campaigns: campaignLists[i].data }))
         setGroups(loaded)
         if (loaded.length > 0) setSelectedAdvertiserId(loaded[0].advertiser.id)
       } catch (err) {
