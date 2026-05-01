@@ -46,12 +46,7 @@ resource "aws_iam_role_policy" "codebuild" {
           "${aws_s3_bucket.hosting.arn}/*",
         ]
       },
-      {
-        Sid      = "CloudFrontInvalidation"
-        Effect   = "Allow"
-        Action   = "cloudfront:CreateInvalidation"
-        Resource = aws_cloudfront_distribution.ui.arn
-      },
     ]
   })
 }
+

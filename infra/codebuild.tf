@@ -34,15 +34,10 @@ resource "aws_codebuild_project" "ui" {
       type  = "PLAINTEXT"
     }
 
-    # Used by post_build to push to S3 and invalidate CloudFront
+    # Used by post_build to sync to S3
     environment_variable {
       name  = "S3_BUCKET"
       value = aws_s3_bucket.hosting.bucket
-    }
-
-    environment_variable {
-      name  = "CLOUDFRONT_DISTRIBUTION_ID"
-      value = aws_cloudfront_distribution.ui.id
     }
   }
 

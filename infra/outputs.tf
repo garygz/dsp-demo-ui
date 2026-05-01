@@ -1,11 +1,6 @@
-output "cloudfront_url" {
-  description = "Public URL of the CloudFront distribution"
-  value       = "https://${aws_cloudfront_distribution.ui.domain_name}"
-}
-
-output "cloudfront_distribution_id" {
-  description = "CloudFront distribution ID (needed for manual cache invalidations)"
-  value       = aws_cloudfront_distribution.ui.id
+output "website_url" {
+  description = "Public URL of the S3 static website"
+  value       = "http://${aws_s3_bucket_website_configuration.hosting.website_endpoint}"
 }
 
 output "hosting_bucket" {
