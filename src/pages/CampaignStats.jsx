@@ -51,11 +51,11 @@ export default function CampaignStats() {
 
     const resolveDefault = async () => {
       try {
-        const advertisers = await apiFetch(ENDPOINTS.ADVERTISERS, user.token)
+        const { data: advertisers } = await apiFetch(ENDPOINTS.ADVERTISERS, user.token)
         if (!advertisers?.length) return
 
         const firstAdv = advertisers[0]
-        const campaigns = await apiFetch(ENDPOINTS.CAMPAIGNS(firstAdv.id), user.token)
+        const { data: campaigns } = await apiFetch(ENDPOINTS.CAMPAIGNS(firstAdv.id), user.token)
         if (!campaigns?.length) return
 
         setAdvertiserId(firstAdv.id)
