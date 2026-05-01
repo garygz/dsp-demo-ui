@@ -1,16 +1,65 @@
-# React + Vite
+# DSP Demo — Frontend
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+React SPA for the [DSP Demo AdTech Campaign Analytics Platform](https://github.com/garygz/dsp-demo-project).
 
-Currently, two official plugins are available:
+---
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
+## Live App
 
-## React Compiler
+**URL:** http://dsp-demo-ui-production-hosting-316159321784.s3-website-us-east-1.amazonaws.com
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+> ⚠️ Demo account — no sensitive data.
 
-## Expanding the ESLint configuration
+| Field | Value |
+|---|---|
+| User | test@test.com |
+| Password | DspDemoTest! |
 
-If you are developing a production application, we recommend using TypeScript with type-aware lint rules enabled. Check out the [TS template](https://github.com/vitejs/vite/tree/main/packages/create-vite/template-react-ts) for information on how to integrate TypeScript and [`typescript-eslint`](https://typescript-eslint.io) in your project.
+---
+
+## Screenshots
+
+**Campaign Management**
+![Campaign Management](./docs/screenshots/dsp-demo-page-1.png)
+**Historical Stats**
+![Historical Stats](./docs/screenshots/dsp-demo-page-2.png)
+
+**Load Generator**
+![Load Generator](./docs/screenshots/dsp-demo-page-3-gen.png)
+
+**Live SSE Chart**
+![Live Chart](./docs/screenshots/dsp-demo-page-4-live.png)
+
+---
+
+## Tech Stack
+
+| | |
+|---|---|
+| Framework | React 19, Vite 8 |
+| UI | MUI v9, MUI X-Charts |
+| Routing | React Router v7 |
+| State | React Context (Auth, LoadGenerator, ChartState) |
+| Observability | Sentry |
+| Tests | Vitest, Testing Library |
+
+---
+
+## Local Development
+
+```bash
+npm install
+npm run dev       # http://localhost:5173
+npm test          # run tests
+npm run build     # production build
+```
+
+Dev login runs automatically on localhost — no password needed.
+
+---
+
+## Deployment
+
+Static files are hosted on S3. Deployments are triggered by pushing to `main` via AWS CodePipeline → CodeBuild → S3 sync.
+
+Infrastructure is managed with Terraform in the `infra/` directory. See the [backend repo](https://github.com/garygz/dsp-demo-project) for full infrastructure and system design documentation.
