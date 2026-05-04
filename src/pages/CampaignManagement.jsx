@@ -3,7 +3,7 @@ import { styled } from '@mui/material/styles'
 import {
   Typography, Table, TableBody, TableCell, TableContainer,
   TableHead, TableRow, Paper, CircularProgress, Alert, Button, Box,
-  TablePagination, FormControl, InputLabel, Select, MenuItem
+  TablePagination, TableSortLabel, FormControl, InputLabel, Select, MenuItem
 } from '@mui/material'
 import { useNavigate } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
@@ -82,11 +82,18 @@ const ResizeHandle = styled('div')({
   '&:hover::after': { backgroundColor: 'rgba(0,0,0,0.5)' },
 })
 
-function ColHeader({ label, colKey, width, updateWidth }) {
+function ColHeader({ label, colKey, width, updateWidth, sort, onSort }) {
   const onMouseDown = useResizeColumn(colKey, updateWidth)
+  const active = sort?.key === colKey
   return (
     <ResizableHeaderCell style={{ width, minWidth: width }}>
-      {label}
+      <TableSortLabel
+        active={active}
+        direction={active ? sort.dir : 'asc'}
+        onClick={() => onSort(colKey)}
+      >
+        {label}
+      </TableSortLabel>
       <ResizeHandle onMouseDown={(e) => onMouseDown(e, width)} />
     </ResizableHeaderCell>
   )
@@ -101,8 +108,14 @@ export default function CampaignManagement() {
   const [groups, setGroups] = useState([])
   const [selectedAdvertiserId, setSelectedAdvertiserId] = useState(null)
   const [pages, setPages] = useState({})
+  const [sort, setSort] = useState({ key: 'createdAt', dir: 'desc' })
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
+
+  const handleSort = (key) => {
+    setSort((prev) => ({ key, dir: prev.key === key && prev.dir === 'asc' ? 'desc' : 'asc' }))
+    setPages({})
+  }
 
   useEffect(() => {
     const load = async () => {
@@ -150,8 +163,14 @@ export default function CampaignManagement() {
     if (!activeGroup) return null
 
     const { advertiser, campaigns } = activeGroup
+    const sorted = [...campaigns].sort((a, b) => {
+      const av = a[sort.key] ?? ''
+      const bv = b[sort.key] ?? ''
+      const cmp = av < bv ? -1 : av > bv ? 1 : 0
+      return sort.dir === 'asc' ? cmp : -cmp
+    })
     const page = getPage(advertiser.id)
-    const paginated = campaigns.slice(page * PAGE_SIZE, page * PAGE_SIZE + PAGE_SIZE)
+    const paginated = sorted.slice(page * PAGE_SIZE, page * PAGE_SIZE + PAGE_SIZE)
 
     return (
       <AdvertiserSection>
@@ -165,9 +184,9 @@ export default function CampaignManagement() {
             </colgroup>
             <TableHead>
               <TableRow>
-                <ColHeader label="Name"         colKey="name"        width={widths.name}        updateWidth={updateWidth} />
-                <ColHeader label="Landing Page" colKey="landingPage"  width={widths.landingPage}  updateWidth={updateWidth} />
-                <ColHeader label="Date Created" colKey="createdAt"   width={widths.createdAt}   updateWidth={updateWidth} />
+                <ColHeader label="Name"         colKey="name"        width={widths.name}        updateWidth={updateWidth} sort={sort} onSort={handleSort} />
+                <ColHeader label="Landing Page" colKey="landingPage"  width={widths.landingPage}  updateWidth={updateWidth} sort={sort} onSort={handleSort} />
+                <ColHeader label="Date Created" colKey="createdAt"   width={widths.createdAt}   updateWidth={updateWidth} sort={sort} onSort={handleSort} />
                 <ResizableHeaderCell style={{ width: widths.actions }} />
               </TableRow>
             </TableHead>
@@ -214,7 +233,7 @@ export default function CampaignManagement() {
           </Table>
           <TablePagination
             component="div"
-            count={campaigns.length}
+            count={sorted.length}
             page={page}
             rowsPerPage={PAGE_SIZE}
             rowsPerPageOptions={[PAGE_SIZE]}
