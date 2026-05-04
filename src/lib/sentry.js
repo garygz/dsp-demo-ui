@@ -22,7 +22,7 @@ export function initSentry() {
 
 /**
  * Report a caught error with optional structured context.
- * Safe to call even if Sentry was not initialised (no DSN in dev).
+ * Safe to call even if Sentry was not initialized (no DSN in dev).
  */
 export function captureError(err, context = {}) {
   Sentry.withScope((scope) => {
