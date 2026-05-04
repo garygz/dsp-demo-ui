@@ -14,7 +14,7 @@ const LoadGeneratorContext = createContext(null)
 export function LoadGeneratorProvider({ children }) {
   const { user } = useAuth()
 
-  const [rate, setRate] = useState(60)
+  const [rate, setRate] = useState(200)
   const [running, setRunning] = useState(false)
 
   const intervalRef = useRef(null)

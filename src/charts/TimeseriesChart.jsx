@@ -228,10 +228,22 @@ export default function TimeseriesChart({ advertiserId, campaignId }) {
     return <ErrorAlert severity="error">{error}</ErrorAlert>
   }
 
-  const fallback1 = live ? [] : generateSeries(range, 0, 0)
-  const fallback2 = fallback1.map((point) => ({ date: point.date, value: +(point.value * 0.1).toFixed(2) }))
-  const impData = impressions.length ? impressions : fallback1
-  const clickData = clicks.length ? clicks : fallback2
+  function generateTestData() {
+    const testImpData = generateSeries(range, 0, 0)
+    const testClickData = testImpData.map((point) => ({date: point.date, value: +(point.value * 0.1).toFixed(2)}));
+    return {testImpData, testClickData};
+  }
+
+
+  const isValidDataSeries = (data) => { data?.length > 10 }
+  let impData = impressions;
+  let clickData = clicks;
+  if (!isValidDataSeries(impData) && !live) {
+    const {testImpData, testClickData} = generateTestData();
+    impData = testImpData;
+    clickData = testClickData;
+  }
+
 
   return (
     <ChartCard>
